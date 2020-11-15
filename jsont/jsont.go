@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/zhhink/common/file"
 
@@ -60,10 +60,12 @@ func (j *JSONT) FilterItemsFromJSONFile(outputItems string) {
 	var line string
 	jsonF := file.Open(j.JSONFileName)
 	line = jsonF.ReadLine()
+	var waitGroutp = sync.WaitGroup{}
 	for {
 		if line == "" {
 			break
 		}
+		waitGroutp.Add(1)
 		go func(jsonStr string) {
 			var out string
 			items, err := FilterItemsFromJSONStr(jsonStr, outputItems)
@@ -72,18 +74,19 @@ func (j *JSONT) FilterItemsFromJSONFile(outputItems string) {
 			}
 			for _, item := range items {
 				if reflect.TypeOf(item).Kind() == reflect.Map {
-					if s, err := convert.MapToJSONString(item); err != nil {
+					s, err := convert.MapToJSONString(item)
+					if err != nil {
 						return
-					} else {
-						out = fmt.Sprintf("%s\t%s", out, s)
 					}
+					out = fmt.Sprintf("%s\t%s", out, s)
 				} else {
 					out = fmt.Sprintf("%s\t%v", out, item)
 				}
 			}
 			fmt.Println(strings.Trim(out, "\t"))
+			waitGroutp.Done()
 		}(line)
 		line = jsonF.ReadLine()
 	}
-	time.Sleep(3 * time.Second)
+	waitGroutp.Wait()
 }
